@@ -1,0 +1,33 @@
+ref_samp_path = '/scratch/Shares/layer/workspace/michael_sandbox/1000GenomesData/BI_300_1000_genomes_samples.reference.txt'
+non_ref_path = '/scratch/Shares/layer/workspace/michael_sandbox/1000GenomesData/BI_300_1000_genomes_samples.non_reference.txt'
+ref_samps = [l.strip() for l in open(ref_samp_path,'r')]
+example_samps = [l.strip() for l in open(non_ref_path,'r')]
+
+BAIT_FILE = 'SureSelect_All_Exon_V2.bed'
+REF_GENOME = '/scratch/Shares/layer/ref/hg37/human_g1k_v37.fasta'
+ACCESS_HG = '/scratch/Shares/layer/ref/hg37/access-5k-mappable.grch37.bed'
+
+rule all:
+	input:
+		'my_reference.cnn'
+
+rule build_ref:
+	input:
+		sbams=expand('/scratch/Shares/layer/workspace/michael_sandbox/1000GenomesData/NonRefBams/{sample}.bam',sample=example_samps),
+		sbais=expand('/scratch/Shares/layer/workspace/michael_sandbox/1000GenomesData/NonRefBams/{sample}.bai',sample=example_samps),
+		bams=expand('/scratch/Shares/layer/workspace/michael_sandbox/1000GenomesData/RefBams/{sample}.bam',sample=ref_samps),
+		bais=expand('/scratch/Shares/layer/workspace/michael_sandbox/1000GenomesData/RefBams/{sample}.bai',sample=ref_samps),
+		ref_hg=REF_GENOME,
+		bait=BAIT_FILE,
+		access_hg=ACCESS_HG
+	output:
+		'my_reference.cnn'
+	shell:
+		"""
+		mkdir -p Example
+		cnvkit.py batch /scratch/Shares/layer/workspace/michael_sandbox/1000GenomesData/NonRefBams/*bam \
+			--normal /scratch/Shares/layer/workspace/michael_sandbox/1000GenomesData/RefBams/*bam  \
+			--targets {input.bait} --fasta {input.ref_hg} \
+			--access {input.access_hg} \
+			--output-reference my_reference.cnn --output-dir Example/
+		"""

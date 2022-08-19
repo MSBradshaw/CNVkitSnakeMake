@@ -1,0 +1,72 @@
+ref_samp_path = config['ref_samples']
+non_ref_path = config['samples']
+
+ref_samps = [l.strip().split('/')[-1].replace('.bam','') for l in open(ref_samp_path,'r')]
+non_ref_samps = [l.strip().split('/')[-1].replace('.bam','') for l in open(non_ref_path,'r')]
+
+"""
+How to run with command line params
+NOTE: file paths need to be absolute not relative
+snakemake -s new_cnvkit.snake --cores 64 --config ref_samples="ref_samples.example.txt" samples="samples.example.txt" bait="SureSelect_All_Exon_V2.bed" ref_genome="/scratch/Shares/layer/ref/hg37/human_g1k_v37.fasta" access="/scratch/Shares/layer/ref/hg37/access-5k-mappable.grch37.bed"
+
+"""
+
+BAIT_FILE = config['bait']
+REF_GENOME = config['ref_genome']
+ACCESS_HG = config['access']
+
+rule all:
+        input:
+                'result.cnn'
+
+rule create_symlink_script:
+	output:
+		'symlink_files.sh'
+	run:
+		with open('symlink_files.sh','w') as outfile:
+			for line in open(config['ref_samples'],'r'):
+				fname = line.split('/')[-1]
+				outfile.write('ln -f -s {} RefSamps/{}\n'.format(line.strip(),fname))
+				outfile.write('ln -f -s {} RefSamps/{}\n'.format(line.strip().replace('.bam','.bai'),fname.replace('.bam','.bai')))
+			for line in open(config['samples'],'r'):
+				fname = line.split('/')[-1]
+				outfile.write('ln -f -s {} NonRefSamps/{}\n'.format(line.strip(),fname))
+				outfile.write('ln -f -s {} NonRefSamps/{}\n'.format(line.strip().replace('.bam','.bai'),fname.replace('.bam','.bai')))
+
+rule symlink_files:
+	input:
+		'symlink_files.sh'
+	output:
+		expand('RefSamps/{sample}.bam',sample=ref_samps),
+		expand('NonRefSamps/{sample}.bam',sample=non_ref_samps),
+		expand('NonRefSamps/{sample}.bai',sample=non_ref_samps),
+		expand('RefSamps/{sample}.bai',sample=ref_samps)
+	shell:
+		"""
+		mkdir -p RefSamps
+		mkdir -p NonRefSamps
+		bash symlink_files.sh
+		"""
+
+rule build_ref:
+	input:
+		sbams=expand('NonRefSamps/{sample}.bam',sample=non_ref_samps),
+		sbais=expand('NonRefSamps/{sample}.bai',sample=non_ref_samps),
+		bams=expand('RefSamps/{sample}.bam',sample=ref_samps),
+		bais=expand('RefSamps/{sample}.bai',sample=ref_samps),
+		ref_hg=REF_GENOME,
+		bait=BAIT_FILE,
+		access_hg=ACCESS_HG
+	output:
+		'result.cnn'
+	threads: 2
+	shell:
+		"""
+		mkdir -p Example
+		cnvkit.py batch /scratch/Shares/layer/workspace/michael_sandbox/1000GenomesData/NonRefBams/*bam \
+			--normal /scratch/Shares/layer/workspace/michael_sandbox/1000GenomesData/RefBams/*bam  \
+			--targets {input.bait} --fasta {input.ref_hg} \
+			--access {input.access_hg} \
+			--output-reference new_my_reference.cnn --output-dir NewExample/ \
+			-p {workflow.cores}
+		"""

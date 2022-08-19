@@ -1,0 +1,8 @@
+name: cnvkit
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+ - cnvkit=0.9.9=pyhdfd78af_0
+ - snakemake-minimal=7.9.0
