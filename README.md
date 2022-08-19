@@ -18,7 +18,7 @@ Start the conda enviroment
 
 Example command
 
-`snakemake -s new_cnvkit.snake --cores 64 --config ref_samples="ref_samples.example.txt" samples="samples.example.txt" bait="SureSelect_All_Exon_V2.bed" ref_genome="human_g1k_v37.fasta" access="access-5k-mappable.grch37.bed"`
+`snakemake -s cnvkit.snake --cores 64 --config ref_samples="ref_samples.example.txt" samples="samples.example.txt" bait="SureSelect_All_Exon_V2.bed" ref_genome="human_g1k_v37.fasta" access="access-5k-mappable.grch37.bed"`
 
 `ref_samples` : the file for this parameter should be a list of the **absolute** file paths for the bam files you want to use as the reference panel for SavvyCNV. Each `.bam` file should have an accompanying `.bai` in the same location.
 
