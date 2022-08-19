@@ -4,7 +4,7 @@ This repo is my implementation of [CNVkit](https://cnvkit.readthedocs.io/en/stab
 
 ## Install
 
-If you haven't already, install (conda)[https://conda.io/projects/conda/en/latest/user-guide/install/index.html].
+If you haven't already, install [conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html).
 
 To install all necessary tools simply run
 
