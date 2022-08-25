@@ -1,7 +1,38 @@
-ref_samp_path = config['ref_samples']
-non_ref_path = config['samples']
+configfile: "conf/config.yaml"
 
-ref_samps = [l.strip().split('/')[-1].replace('.bam','') for l in open(ref_samp_path,'r')]
+# make sure there is a ref panel sample list of a prebuild .cnn file provided
+num_missing=0
+filler_files_to_expect = []
+if 'ref_samples' not in config:
+	config['ref_samples'] = 'ref_samps_not_needed.txt'
+	filler_files_to_expect.append('ref_samps_not_needed.txt')
+	num_missing+=1
+if 'cnn_ref' not in config:
+	config['cnn_ref'] = 'cnn_ref_not_needed.txt'
+	filler_files_to_expect.append('cnn_ref_not_needed.txt')
+	num_missing+=1
+
+print(config)
+if num_missing != 1 :
+	print('Error, you must provide a config value for either ref_samples xor cnn_ref not both.')
+
+
+if config['ref_samples'] == 'samps_not_needed.txt':
+	ref_samp_path = []
+	ref_samps = []
+	BAIT_FILE = 'not_needed.txt'
+        REF_GENOME = 'not_needed.txt'
+        ACCESS_HG = 'not_needed.txt'
+	filler_files_to_expect.append('not_needed.txt')
+else:
+	BAIT_FILE = config['bait']
+	REF_GENOME = config['ref_genome']
+	ACCESS_HG = config['access']
+	ref_samp_path = config['ref_samples']
+	ref_samps = [l.strip().split('/')[-1].replace('.bam','') for l in open(ref_samp_path,'r')]
+
+CNN_REF = config['cnn_ref']
+non_ref_path = config['samples']
 non_ref_samps = [l.strip().split('/')[-1].replace('.bam','') for l in open(non_ref_path,'r')]
 
 """
@@ -11,23 +42,23 @@ snakemake -s new_cnvkit.snake --cores 64 --config ref_samples="ref_samples.examp
 
 """
 
-BAIT_FILE = config['bait']
-REF_GENOME = config['ref_genome']
-ACCESS_HG = config['access']
-
 rule all:
         input:
-                'result.cnn'
+                'CNVkitResults'
 
 rule create_symlink_script:
 	output:
-		'symlink_files.sh'
+		'symlink_files.sh',
+		' '.join(filler_files_to_expect)
 	run:
+		for x in filler_files_to_expect:
+			shell('touch {}'.format(x))
 		with open('symlink_files.sh','w') as outfile:
-			for line in open(config['ref_samples'],'r'):
-				fname = line.split('/')[-1]
-				outfile.write('ln -f -s {} RefSamps/{}\n'.format(line.strip(),fname))
-				outfile.write('ln -f -s {} RefSamps/{}\n'.format(line.strip().replace('.bam','.bai'),fname.replace('.bam','.bai')))
+			if config['ref_samples'] != 'ref_samps_not_needed.txt':
+				for line in open(config['ref_samples'],'r'):
+					fname = line.split('/')[-1]
+					outfile.write('ln -f -s {} RefSamps/{}\n'.format(line.strip(),fname))
+					outfile.write('ln -f -s {} RefSamps/{}\n'.format(line.strip().replace('.bam','.bai'),fname.replace('.bam','.bai')))
 			for line in open(config['samples'],'r'):
 				fname = line.split('/')[-1]
 				outfile.write('ln -f -s {} NonRefSamps/{}\n'.format(line.strip(),fname))
@@ -37,10 +68,8 @@ rule symlink_files:
 	input:
 		'symlink_files.sh'
 	output:
-		expand('RefSamps/{sample}.bam',sample=ref_samps),
-		expand('NonRefSamps/{sample}.bam',sample=non_ref_samps),
-		expand('NonRefSamps/{sample}.bai',sample=non_ref_samps),
-		expand('RefSamps/{sample}.bai',sample=ref_samps)
+		sbam = expand('NonRefSamps/{sample}.bam',sample=non_ref_samps),
+		sbai = expand('NonRefSamps/{sample}.bai',sample=non_ref_samps),
 	shell:
 		"""
 		mkdir -p RefSamps
@@ -48,25 +77,35 @@ rule symlink_files:
 		bash symlink_files.sh
 		"""
 
-rule build_ref:
+rule call:
 	input:
-		sbams=expand('NonRefSamps/{sample}.bam',sample=non_ref_samps),
+ 		sbams=expand('NonRefSamps/{sample}.bam',sample=non_ref_samps),
 		sbais=expand('NonRefSamps/{sample}.bai',sample=non_ref_samps),
-		bams=expand('RefSamps/{sample}.bam',sample=ref_samps),
-		bais=expand('RefSamps/{sample}.bai',sample=ref_samps),
 		ref_hg=REF_GENOME,
 		bait=BAIT_FILE,
-		access_hg=ACCESS_HG
+		access_hg=ACCESS_HG,
+		cnn_ref=CNN_REF
 	output:
-		'result.cnn'
+		outdir=directory('CNVkitResults')
 	threads: 2
-	shell:
-		"""
-		mkdir -p Example
-		cnvkit.py batch /scratch/Shares/layer/workspace/michael_sandbox/1000GenomesData/NonRefBams/*bam \
-			--normal /scratch/Shares/layer/workspace/michael_sandbox/1000GenomesData/RefBams/*bam  \
-			--targets {input.bait} --fasta {input.ref_hg} \
-			--access {input.access_hg} \
-			--output-reference new_my_reference.cnn --output-dir NewExample/ \
-			-p {workflow.cores}
-		"""
+	run:
+		if config['ref_samples'] != 'Missing':
+			print('Not Missing')
+			shell("""
+				mkdir -p Example
+				cnvkit.py batch NonRefSamps/*bam \
+					--normal RefSamps/*bam  \
+					--targets {input.bait} --fasta {input.ref_hg} \
+					--access {input.access_hg} \
+					--output-reference 'ref_panel.cnn' --output-dir {output.outdir} \
+					-p {workflow.cores}
+				""")
+		else:
+			print('Missing')
+			shell("""
+				mkdir -p Example
+				cnvkit.py batch NonRefSamps/*bam \
+					-r {input.cnn_ref} \
+					--output-dir {output.outdir} \
+					-p {workflow.cores}
+                		""")
