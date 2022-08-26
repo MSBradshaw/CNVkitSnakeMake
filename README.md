@@ -24,7 +24,7 @@ This will produce a dirrectory with the CNV calls `CNVkitResults` and `ref_panel
 
 If you run CNVkit many times with the same reference panel you can speed up the process by providing your previous created `.cnn` file.
 
-`'snakemake -s cnvkit.snake --cores 64 --rerun-incomplete --config cnn_ref="result.cnn" samples="samples.example.txt"`
+`snakemake -s cnvkit.snake --cores 64 --rerun-incomplete --config cnn_ref="result.cnn" samples="samples.example.txt"`
 
 Config parameter:
 
